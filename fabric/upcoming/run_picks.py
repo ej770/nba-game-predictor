@@ -14,12 +14,13 @@ schema = ("game_id long, season_label string, game_date date, tipoff_utc timesta
           "model_confidence double, model_correct double, elo_prob_home double, elo_home double, "
           "elo_away double, updated_utc string")
 pdf = picks.assign(game_date=picks["game_date"].dt.date, tipoff_utc=picks["tipoff_utc"].dt.tz_localize(None))
-rows = pdf.astype(object).where(pdf.notna(), None).values.tolist()
+rows = [[v.to_pydatetime() if isinstance(v, pd.Timestamp) else v for v in row]   # Spark takes datetime, not pd.Timestamp
+        for row in pdf.astype(object).where(pdf.notna(), None).values.tolist()]
 (spark.createDataFrame(rows, schema).write.mode("overwrite").option("overwriteSchema", "true")
  .format("delta").saveAsTable("season_picks"))
 
 graded = picks["model_correct"].notna()
-print(f"{len(picks)} games: {int(graded.sum())} played ({picks.loc[graded, 'model_correct'].mean():.1%} picked right), "
-      f"{int((~graded).sum())} upcoming")
-if "NBA Game Predictor" in set(fabric.list_items(item_type="SemanticModel")["Display Name"]):
+record = f" ({picks.loc[graded, 'model_correct'].mean():.1%} picked right)" if graded.any() else ""
+print(f"{len(picks)} games: {int(graded.sum())} played{record}, {int((~graded).sum())} upcoming")
+if "NBA Game Predictor" in set(fabric.list_datasets()["Dataset Name"]):
     fabric.refresh_dataset("NBA Game Predictor")        # so the app shows today's picks
