@@ -100,8 +100,9 @@ class Q:
             objects.update(TABLE_STYLE, total=[{"properties": {"totals": lit(False)}}])
         if colors:                                   # one colour per series, by query reference
             ys = [i["queryRef"] for i in self.proj.get("Y", [])]
-            objects["dataPoint"] = [{"properties": {"fill": color(c)}, "selector": {"metadata": ref}}
-                                    for ref, c in zip(ys, colors)]
+            objects["dataPoint"] = ([{"properties": {"fill": color(colors[0])}}] if len(ys) == 1 else
+                                    [{"properties": {"fill": color(c)}, "selector": {"metadata": ref}}
+                                     for ref, c in zip(ys, colors)])
         if objects:
             sv["objects"] = objects
         vco = box()
@@ -138,7 +139,9 @@ def nav_button(section, label, active):
     fill = OLIVE if active else SIDEBAR
     return {"visualType": "actionButton", "drillFilterOtherVisuals": True,
             "objects": {"icon": [{"properties": {"show": lit(False)}, "selector": d}],
-                        "outline": [{"properties": {"show": lit(False)}, "selector": d}],
+                        "outline": [{"properties": {"show": lit(False)}}] +
+                                   [{"properties": {"show": lit(False)}, "selector": {"id": st}}
+                                    for st in ("default", "hover", "press", "selected")],
                         "text": [{"properties": {"show": lit(True)}},
                                  {"properties": {"text": lit(label), "fontColor": color("#FFFFFF"),
                                                  "fontSize": lit(11.0), "horizontalAlignment": lit("left"),
@@ -205,10 +208,10 @@ class Page:
                 "filters": json.dumps(self.filters), "visualContainers": self.visuals}
 
 
-def card(table, measure, label, dark=False):
+def card(table, measure, label, dark=False, size=22.0):
     value, caption = ("#FFFFFF", "#D5D9C6") if dark else (OLIVE, GREY)
     return Q().add("Values", table, measure, "measure", name=label).visual(
-        "card", objects={"labels": [{"properties": {"fontSize": lit(24.0), "color": color(value)}}],
+        "card", objects={"labels": [{"properties": {"fontSize": lit(size), "color": color(value)}}],
                          "categoryLabels": [{"properties": {"show": lit(True), "fontSize": lit(10.0),
                                                             "color": color(caption)}}]},
         vc_extra={"background": [{"properties": {"show": lit(True), "color": color(FOREST if dark else CARD_BG),
@@ -230,12 +233,12 @@ def build() -> dict:
     # ---- Page 0: the 2026-27 season, refreshed daily by NBA_Upcoming_Picks ----------------------
     p0 = Page("ReportSection0season", "2026-27 picks", 0)
     p0.add("title", 24, 12, 1232, 64, text_visual([
-        ("2026-27 picks", 20, True, INK),
+        ("2026-27 picks", 16, True, INK),
         ("Every game of the new season, picked before tip-off by the registered model and graded once "
-         "it's played. Refreshed daily from ESPN's schedule.", 11, False, GREY)]))
+         "it's played. Refreshed daily from ESPN's schedule.", 9, False, GREY)]))
     for i, (m, label) in enumerate([("Record", "Picks right so far"), ("Upcoming Games", "Games picked, next 2 weeks"),
                                     ("Last Updated", "Last updated")]):
-        p0.add(f"card{i}", 24 + i * 316, 88, 300, 96, card("season_picks", m, label, dark=i == 0))
+        p0.add(f"card{i}", 24 + i * 316, 88, 300, 96, card("season_picks", m, label, dark=i == 0, size=16.0))
     played = lambda stage: [column_filter("season_picks", "stage", [stage], f"Stage{stage}")]
     p0.add("upcoming", 24, 200, 610, 500, Q()
            .add("Values", "season_picks", "game_date", sort="asc", name="Date")
@@ -255,9 +258,9 @@ def build() -> dict:
     # ---- Page 1: pre-game picks -------------------------------------------------------------
     p1 = Page("ReportSection1pregame", "Pre-game picks", 1, filters=test_only)
     p1.add("title", 24, 12, 1232, 64, text_visual([
-        ("NBA Game Predictor: pre-game picks", 20, True, INK),
+        ("NBA Game Predictor: pre-game picks", 16, True, INK),
         ("Graded on 2022-23 to 2025-26: 4,920 games the model never saw while it was built. "
-         "Each season is predicted by a model trained only on earlier seasons.", 11, False, GREY)]))
+         "Each season is predicted by a model trained only on earlier seasons.", 9, False, GREY)]))
     cards = [("Model Accuracy", "Our model (all games)"),
              ("Model Accuracy With Lines", "Our model (games with betting lines)"),
              ("Market Accuracy", "Las Vegas favourite"),
@@ -290,9 +293,9 @@ def build() -> dict:
     # ---- Page 2: live win probability ---------------------------------------------------------
     p2 = Page("ReportSection2live", "Live win probability", 2)
     p2.add("title", 24, 12, 1232, 64, text_visual([
-        ("Live win probability", 20, True, INK),
+        ("Live win probability", 16, True, INK),
         ("Every 15 seconds of every test-season game: the home team's chance to win from the score, "
-         "the clock and the pre-game view. Pick a game below.", 11, False, GREY)]))
+         "the clock and the pre-game view. Pick a game below.", 9, False, GREY)]))
     p2.add("byMinute", 24, 88, 820, 320, Q()
            .add("Category", "live_by_minute", "minute", sort="asc", name="Minutes played")
            .add("Y", "live_by_minute", "accuracy", "avg", name="Score, clock and pre-game view")
@@ -325,9 +328,9 @@ def build() -> dict:
     # ---- Page 3: games and teams ---------------------------------------------------------------
     p3 = Page("ReportSection3games", "Games and teams", 3)
     p3.add("title", 24, 12, 1232, 64, text_visual([
-        ("Every pick since 2010-11", 20, True, INK),
+        ("Every pick since 2010-11", 16, True, INK),
         ("Each game's pre-game probability from our model, Elo and the betting market. "
-         "Filter by season and team.", 11, False, GREY)]))
+         "Filter by season and team.", 9, False, GREY)]))
     p3.add("season", 24, 88, 180, 64, slicer("games", "season_label", "Season"), filters=all_seasons)
     p3.add("team", 212, 88, 180, 64, slicer("teams", "team", "Team"))
     p3.add("acc", 400, 88, 220, 64, card("games", "Team Model Accuracy", "Our model's accuracy", dark=True))
