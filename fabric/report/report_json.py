@@ -100,9 +100,8 @@ class Q:
             objects.update(TABLE_STYLE, total=[{"properties": {"totals": lit(False)}}])
         if colors:                                   # one colour per series, by query reference
             ys = [i["queryRef"] for i in self.proj.get("Y", [])]
-            objects["dataPoint"] = ([{"properties": {"fill": color(colors[0])}}] if len(ys) == 1 else
-                                    [{"properties": {"fill": color(c)}, "selector": {"metadata": ref}}
-                                     for ref, c in zip(ys, colors)])
+            objects["dataPoint"] = ([{"properties": {"fill": color(colors[0])}}] if len(ys) == 1 else []) + \
+                [{"properties": {"fill": color(c)}, "selector": {"metadata": ref}} for ref, c in zip(ys, colors)]
         if objects:
             sv["objects"] = objects
         vco = box()
@@ -333,8 +332,8 @@ def build() -> dict:
          "Filter by season and team.", 9, False, GREY)]))
     p3.add("season", 24, 88, 180, 64, slicer("games", "season_label", "Season"), filters=all_seasons)
     p3.add("team", 212, 88, 180, 64, slicer("teams", "team", "Team"))
-    p3.add("acc", 400, 88, 220, 64, card("games", "Team Model Accuracy", "Our model's accuracy", dark=True))
-    p3.add("acc2", 628, 88, 220, 64, card("games", "Team Games", "Games"))
+    p3.add("acc", 400, 88, 220, 64, card("games", "Team Model Accuracy", "Our model's accuracy", dark=True, size=15.0))
+    p3.add("acc2", 628, 88, 220, 64, card("games", "Team Games", "Games", size=15.0))
     p3.add("games", 24, 168, 824, 532, Q()
            .add("Values", "games", "game_date", sort="desc", name="Date")
            .add("Values", "games", "final_score", name="Final score")
