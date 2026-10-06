@@ -1,0 +1,4 @@
+model,test_accuracy,known_before_tipoff
+Pre-game model (honest),0.6636,True
+"Final box score: shooting, rebounds, turnovers",0.9524,False
+Final score,1.0,False

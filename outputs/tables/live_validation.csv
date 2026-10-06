@@ -1,0 +1,3 @@
+model,log_loss,brier,accuracy
+Logistic regression (engineered),0.4725,0.1586,0.7609
+Gradient boosting (monotone),0.4763,0.1595,0.7594

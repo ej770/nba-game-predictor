@@ -1,0 +1,6 @@
+model,games,accuracy,log_loss,brier,auc
+Our pre-game model,4920,0.6636,0.6132,0.2126,0.7135
+Elo rating alone,4920,0.6508,0.6279,0.2187,0.7077
+Always pick the home team,4920,0.5553,0.6929,0.2499,0.5
+Our pre-game model,4169,0.6546,0.6207,0.216,0.703
+Betting market favourite (closing moneyline),4169,0.6783,0.5983,0.206,0.7342

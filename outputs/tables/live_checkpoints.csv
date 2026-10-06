@@ -1,0 +1,10 @@
+moment,seconds_played,games,accuracy,accuracy_score_only,log_loss
+Tip-off,0,4920,0.6646,0.5551,0.6133
+End of 1st quarter,720,4920,0.7037,0.6589,0.5633
+Halftime,1440,4920,0.7596,0.7366,0.4892
+End of 3rd quarter,2160,4920,0.822,0.8165,0.3745
+5 minutes left,2580,4920,0.8758,0.8758,0.2694
+2 minutes left,2760,4920,0.9173,0.9169,0.1882
+1 minute left,2820,4920,0.9343,0.9321,0.1538
+30 seconds left,2850,4920,0.9411,0.9404,0.1344
+15 seconds left,2865,4920,0.9508,0.9504,0.1195
