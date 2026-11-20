@@ -1,0 +1,58 @@
+name: Refresh Courtcast model picks
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 11 * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/courtcast.yml', 'src/07_upcoming.py']
+permissions:
+  contents: write
+concurrency: courtcast-model-feed
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        id: history
+        with:
+          path: |
+            data/processed
+            fabric/tables/games.csv
+            fabric/tables/teams.csv
+          key: courtcast-history-v1-${{ hashFiles('src/0[0-5]*.py', 'src/config.py', 'src/checksums.json', 'requirements.txt') }}
+      - if: steps.history.outputs.cache-hit != 'true'
+        run: python run_all.py
+      - run: python src/07_upcoming.py
+      - name: Publish game probabilities
+        run: |
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          with open("fabric/tables/season_picks.csv") as f:
+              picks = {r["game_id"]: float(r["model_prob_home"]) for r in csv.DictReader(f)}
+          if not picks or not all(0 <= p <= 1 for p in picks.values()):
+              raise ValueError("Incomplete picks feed")
+          Path("/tmp/season-picks.json").write_text(json.dumps(picks))
+          PY
+          if git ls-remote --exit-code --heads origin web-data; then
+            git fetch origin web-data
+            git worktree add --detach /tmp/web-feed FETCH_HEAD
+          else
+            git worktree add --orphan -b web-data /tmp/web-feed
+          fi
+          cd /tmp/web-feed
+          cp /tmp/season-picks.json .
+          git add season-picks.json
+          git -c user.name='Courtcast' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Refresh NBA game probabilities' || test -z "$(git status --porcelain)"
+          git push origin HEAD:refs/heads/web-data
