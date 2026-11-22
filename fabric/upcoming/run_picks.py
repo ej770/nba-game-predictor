@@ -12,7 +12,8 @@ schema = ("game_id long, season_label string, game_date date, tipoff_utc timesta
           "home string, away string, stage string, status string, home_pts double, away_pts double, "
           "final_score string, winner string, model_prob_home double, model_pick string, "
           "model_confidence double, model_correct double, elo_prob_home double, elo_home double, "
-          "elo_away double, updated_utc string")
+          "elo_away double, updated_utc string, projected_home double, projected_away double, "
+          "home_spread double, projected_total double, market_total double, total_lean string")
 pdf = picks.assign(game_date=picks["game_date"].dt.date, tipoff_utc=picks["tipoff_utc"].dt.tz_localize(None))
 rows = [[v.to_pydatetime() if isinstance(v, pd.Timestamp) else v for v in row]   # Spark takes datetime, not pd.Timestamp
         for row in pdf.astype(object).where(pdf.notna(), None).values.tolist()]
