@@ -11,7 +11,7 @@ or scheduled in the next 14 days). In Fabric the NBA_Upcoming_Picks notebook run
 import json
 import urllib.request
 from bisect import bisect_left
-from collections import defaultdict
+from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -50,7 +50,10 @@ def fetch_day(day: date) -> list:
         tip = datetime.fromisoformat(comp["date"].replace("Z", "+00:00"))
         status = comp["status"]["type"]
         final = bool(status["completed"])
-        rows.append({"game_id": int(e["id"]), "tipoff_utc": tip,
+        odds = (comp.get("odds") or [{}])[0]
+        line = pd.to_numeric(odds.get("overUnder"), errors="coerce")
+        market_total = line if status.get("state") == "pre" and np.isfinite(line) and line > 0 else np.nan
+        rows.append({"market_total": market_total, "game_id": int(e["id"]), "tipoff_utc": tip,
                      "date": pd.Timestamp(tip.astimezone(ZoneInfo("America/New_York")).date()),
                      "home_f": code(side["home"]), "away_f": code(side["away"]), "final": final,
                      "status": "Final" if final else status["description"],
@@ -114,6 +117,39 @@ def season_features(sched: pd.DataFrame, start_elo: dict, history: pd.DataFrame)
     return pd.DataFrame(rows, index=sched.index)
 
 
+def score_forecasts(sched: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+    """Last ten completed regular-season games per team, including the previous season."""
+    recent = defaultdict(lambda: deque(maxlen=10))
+
+    def record(home, away, home_pts, away_pts):
+        recent[home].append((home_pts, away_pts))
+        recent[away].append((away_pts, home_pts))
+
+    history = games.loc[pd.to_datetime(games["game_date"]) < pd.Timestamp(SEASON_START)]
+    for g in history.sort_values("game_date", kind="stable").itertuples():
+        record(g.home, g.away, g.home_pts, g.away_pts)
+
+    rows = []
+    for g in sched.itertuples():
+        home_pts = away_pts = np.nan
+        if recent[g.home_f] and recent[g.away_f]:
+            home_for, home_against = np.mean(recent[g.home_f], axis=0)
+            away_for, away_against = np.mean(recent[g.away_f], axis=0)
+            home_pts = (home_for + away_against) / 2 + 1.5
+            away_pts = (away_for + home_against) / 2 - 1.5
+        rows.append((round(home_pts, 2), round(away_pts, 2)))
+        if g.final:
+            record(g.home_f, g.away_f, g.home_pts, g.away_pts)
+
+    out = pd.DataFrame(rows, index=sched.index, columns=["projected_home", "projected_away"])
+    out["home_spread"] = (out.projected_away - out.projected_home).round(2)
+    out["projected_total"] = (out.projected_home + out.projected_away).round(2)
+    out["market_total"] = sched.get("market_total", np.nan)
+    edge = out.projected_total - out.market_total
+    out["total_lean"] = np.select([edge > 0, edge < 0, edge == 0], ["Over", "Under", "On line"], default=None)
+    return out
+
+
 def season_picks(sched: pd.DataFrame, games: pd.DataFrame, teams: pd.DataFrame, model) -> pd.DataFrame:
     """sched from fetch_schedule; games and teams are the report tables saved by step 5."""
     start = teams.dropna(subset=["elo_start_2026_27"]).set_index("franchise")["elo_start_2026_27"].to_dict()
@@ -135,7 +171,8 @@ def season_picks(sched: pd.DataFrame, games: pd.DataFrame, teams: pd.DataFrame, 
     cols = ["game_id", "season_label", "date", "tipoff_utc", "game_label", "home_f", "away_f", "stage", "status",
             "home_pts", "away_pts", "final_score", "winner", "model_prob_home", "model_pick",
             "model_confidence", "model_correct", "elo_prob_home", "elo_home", "elo_away", "updated_utc"]
-    return out[cols].rename(columns={"date": "game_date", "home_f": "home", "away_f": "away"})
+    forecasts = score_forecasts(sched, games)
+    return out[cols].join(forecasts).rename(columns={"date": "game_date", "home_f": "home", "away_f": "away"})
 
 
 def main() -> None:

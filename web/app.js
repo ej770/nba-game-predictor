@@ -1,7 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const scheduleRoot = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba";
-const modelURL = "https://raw.githubusercontent.com/ej770/nba-game-predictor/web-data/season-picks.json";
+const modelURL = "https://raw.githubusercontent.com/ej770/nba-game-predictor/web-data/score-forecasts.json";
 const dateInEast = d => new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 const day = $("day");
 day.value = dateInEast(new Date());
@@ -25,6 +25,17 @@ function estimate(awayFor, awayAgainst, homeFor, homeAgainst) {
   const t = 1 / (1 + .2316419*Math.abs(z));
   const tail = Math.exp(-z*z/2)/Math.sqrt(2*Math.PI)*t*(.31938153+t*(-.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));
   return {away, home, p:z >= 0 ? 1-tail : tail};
+}
+function forecastText(estimate, home, away, line) {
+  const margin = Number((estimate.home - estimate.away).toFixed(2));
+  const total = Number((estimate.home + estimate.away).toFixed(2));
+  const spread = margin === 0 ? "Pick’em" : (margin > 0 ? home : away) + " −" + Math.abs(margin);
+  let text = "Fair spread: " + spread + " · Projected total: " + total;
+  if (Number.isFinite(line) && line > 0) {
+    const lean = total > line ? "Over" : total < line ? "Under" : "On line";
+    text += " · " + lean + " (line " + line + ")";
+  }
+  return text;
 }
 function recent(team, year, tip) {
   const key = team.id + "/" + year;
@@ -73,6 +84,7 @@ function render() {
       const bar=node("div",null,"track"), fill=node("i");fill.style.width=(100*conf)+"%";bar.append(fill);box.append(bar);
     } else box.append(node("span",g.loading ? "Loading prediction…" : "Pre-game prediction unavailable","sub"));
     if(g.est && g.state!=="pre") box.append(node("div","Projected score · "+Math.round(g.est.away)+" – "+Math.round(g.est.home),"sub"));
+    if (g.est) box.append(node("p", forecastText(g.est, g.home.team.abbreviation, g.away.team.abbreviation, g.line), "sub"));
     card.append(box);board.append(card);
   }
 }
@@ -81,14 +93,14 @@ async function loadBoard() {
   const selected=day.value;
   if(!selected) return;
   $("status").textContent="Loading scoreboard…"; $("games").replaceChildren(); games=[];
-  const model = modelLoaded ? Promise.resolve() : json(modelURL).then(data=>{modelRows=data;modelLoaded=true;}).catch(()=>{});
+  const model = modelLoaded ? Promise.resolve() : json(modelURL).catch(()=>json(modelURL.replace("score-forecasts","season-picks"))).then(data=>{modelRows=data;modelLoaded=true;}).catch(()=>{});
   try {
     const data=await json(scheduleRoot+"/scoreboard?dates="+selected.replaceAll("-",""));
     if(run!==generation) return;
     if(!Array.isArray(data.events)) throw new Error("Invalid scoreboard");
     const list=data.events.map(e=>{
       const c=e.competitions[0], status=c.status, state=status.type.state;
-      return {id:e.id,year:e.season.year, regular:e.season.type===2,tip:e.date,state,
+      return {id:e.id,line:state === "pre" ? Number(c.odds?.[0]?.overUnder) : NaN,year:e.season.year, regular:e.season.type===2,tip:e.date,state,
         detail:state==="pre" && status.type.name==="STATUS_SCHEDULED" ? new Date(e.date).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"}) : status.type.shortDetail,
         home:c.competitors.find(s=>s.homeAway==="home"),away:c.competitors.find(s=>s.homeAway==="away"),loading:true};
     }).filter(g=>g.home && g.away);
@@ -99,7 +111,9 @@ async function loadBoard() {
         const [stats] = await Promise.all([Promise.all([recent(g.away.team,g.year,g.tip),recent(g.home.team,g.year,g.tip)]).catch(()=>[]), model]);
         if(stats.length===2 && stats.every(Boolean)) g.est=estimate(...stats[0],...stats[1]);
         const original=modelRows[g.id];
-        if(Number.isFinite(original)&&original>=0&&original<=1){g.p=original;g.source="Repository model";}
+        const probability = original?.p ?? original;
+        if (Number.isFinite(original?.home) && Number.isFinite(original?.away)) g.est=original;
+        if(Number.isFinite(probability)&&probability>=0&&probability<=1){g.p=probability;g.source="Repository model";}
         else if(g.est){g.p=g.est.p;g.source="Score estimate";}
       }
       g.loading=false;if(run===generation)render();
@@ -118,9 +132,9 @@ function route() {
 }
 function simulate(){
   const values=["af","aa","hf","ha"].map(id=>$(id).valueAsNumber);
-  if(!$("sim").checkValidity()){$("out").textContent="Enter an average between 50 and 200 for each field.";return;}
+  if(!$("sim").checkValidity()){$("out").textContent="Enter scoring averages from 50 to 200 and a positive market total if supplied.";return;}
   const result=estimate(...values);
-  $("out").textContent="Away "+Math.round(result.away)+" · Home "+Math.round(result.home)+" | Home win "+(result.p*100).toFixed(1)+"%";
+  $("out").textContent="Away "+Math.round(result.away)+" · Home "+Math.round(result.home)+" | Home win "+(result.p*100).toFixed(1)+"% · "+forecastText(result,"Home","Away",$("total-line").valueAsNumber);
 }
 document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{
   filter=b.dataset.filter;document.querySelectorAll("[data-filter]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));

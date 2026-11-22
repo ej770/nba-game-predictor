@@ -40,7 +40,12 @@ jobs:
           import csv, json
           from pathlib import Path
           with open("fabric/tables/season_picks.csv") as f:
-              picks = {r["game_id"]: float(r["model_prob_home"]) for r in csv.DictReader(f)}
+              rows = list(csv.DictReader(f))
+          picks = {r["game_id"]: float(r["model_prob_home"]) for r in rows}
+          forecasts = {r["game_id"]: {"p": picks[r["game_id"]], "home": float(r["projected_home"]),
+                                      "away": float(r["projected_away"])}
+                       for r in rows if r["projected_home"] and r["projected_away"]}
+          Path("/tmp/score-forecasts.json").write_text(json.dumps(forecasts, allow_nan=False))
           if not picks or not all(0 <= p <= 1 for p in picks.values()):
               raise ValueError("Incomplete picks feed")
           Path("/tmp/season-picks.json").write_text(json.dumps(picks))
@@ -52,7 +57,7 @@ jobs:
             git worktree add --orphan -b web-data /tmp/web-feed
           fi
           cd /tmp/web-feed
-          cp /tmp/season-picks.json .
-          git add season-picks.json
+          cp /tmp/season-picks.json /tmp/score-forecasts.json .
+          git add season-picks.json score-forecasts.json
           git -c user.name='Courtcast' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Refresh NBA game probabilities' || test -z "$(git status --porcelain)"
           git push origin HEAD:refs/heads/web-data

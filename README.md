@@ -67,6 +67,12 @@ No honest pre-game model gets close to 99%. The best ones, the betting market in
 - `NBA_Report_Builder.ipynb` builds a Direct Lake semantic model (a relationship, 13 DAX measures, percent formats) and a four-page Power BI report from Python, using semantic-link-labs. Pages: 2026-27 picks (record so far, upcoming picks, results), pre-game picks, live win probability (pick a season, team and game), and games and teams.
 - The report is published as the **NBA Game Predictor** Fabric app ([open the app](https://app.fabric.microsoft.com/Redirect?action=OpenApp&appId=6e566047-8066-40cf-86ae-0be3215a2d89&ctid=83b30141-8b54-49f4-be83-e9f1da22bc6c); viewers need access granted in the app's audience settings).
 
+## Score, spread and total forecasts
+
+The daily picks use each team's last ten completed regular-season games (including the prior season at opening night). Each score averages the team's points scored and its opponent's points allowed. Home court adds 1.5 points at home and subtracts 1.5 away. The fair home spread is away points minus home points. The projected total is their sum. A forecast of home 118 and away 111 gives home −7 and a total of 229, an Over lean against 226.5.
+
+Courtcast and the upcoming Power BI table display the forecasts. An available pregame ESPN total supplies the line for comparison. Equal totals are labeled “On line”. Lines are refresh-time snapshots and are not archived for historical betting evaluation. The winner-model accuracy above does not measure spread or totals performance. To refresh an existing Fabric deployment, import the updated upcoming-picks and report-builder notebooks, run them in that order, then update the published app.
+
 ## How to run locally
 
 ```bash
